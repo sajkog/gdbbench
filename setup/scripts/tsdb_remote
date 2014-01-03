@@ -1,0 +1,35 @@
+#!/bin/bash
+cd /opt
+echo "Downloading hbase"
+wget -q http://mirrors.ukfast.co.uk/sites/ftp.apache.org/hbase/stable/hbase-0.94.14.tar.gz
+tar xfz hbase-0.94.14.tar.gz
+rm -f hbase-0.94.14.tar.gz
+mv hbase-0.94.14 hbase
+echo "Installing java"
+yum -y -q install java-1.7*
+cd hbase
+service iptables stop
+chkconfig iptables off
+echo "" > /etc/hosts
+echo "export JAVA_HOME=/usr/lib/jvm/java-1.7.0/jre " >> conf/hbase-env.sh
+/opt/hbase/bin/start-hbase.sh
+cd /opt
+echo "Installing gnuplot and make"
+yum -y -q install gnuplot make
+echo "Downloading tsdb source"
+wget -q https://opentsdb.googlecode.com/files/opentsdb-1.1.0.tar.gz
+tar zxvf opentsdb-1.1.0.tar.gz
+rm -f opentsdb-1.1.0.tar.gz
+mv opentsdb-1.1.0 opentsdb
+cd /opt/opentsdb 
+rm -f /opt/opentsdb/third_party/zookeeper/zookeeper-3.3.6.jar
+cp /opt/hbase/lib/zookeeper-3.4.5.jar /opt/opentsdb/third_party/zookeeper/
+./build.sh &
+wait
+cd build
+make install
+      
+mkdir /tmp/tsd 
+env COMPRESSION=NONE HBASE_HOME=/opt/hbase/ /opt/opentsdb/src/create_table.sh      
+nohup tsdb tsd --port=4242 --staticroot=/opt/opentsdb/build/staticroot --cachedir=/tmp/tsd --worker-threads=2 >/opt/tsdb_deamon.out 2>&1 &
+echo $! > /opt/daemon.pid

@@ -1,0 +1,18 @@
+#!/bin/bash
+
+. current_run_settings
+
+DB_TESTED=$1
+nStartIndex=$2
+
+mainbasetime=$(date +%s%N)
+echo "$HOSTNAME: starting tests @$mainbasetime"
+for (( i=0; i < $nProcessCountPerServer; i++ ))
+do
+	nStart=$(($i*$nDevicesPerProcess+1+$nStartIndex))
+	nEnd=$(($nStart+$nDevicesPerProcess-1))
+    (./$DB_TESTED/add_data $i $nStart $nEnd ) &
+done
+wait
+mainbasetimeend=$(date +%s%N)
+echo "$HOSTNAME: local tests finished @$mainbasetimeend in $(echo "scale=3;(${mainbasetimeend} - ${mainbasetime})/(1*10^09)" | bc) seconds"

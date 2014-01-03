@@ -1,0 +1,5 @@
+#!/bin/bash
+HBASE_LOCAL_IP_1=""
+HBASE_USE_DB_NAME="masterdb"
+HBASE_DB_PORT="8080"
+HBASE_SERVER_PASSWORD="#p@swd!srt2539471"

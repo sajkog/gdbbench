@@ -1,0 +1,15 @@
+cd /opt
+echo "Downloading hbase"
+wget -q http://mirrors.ukfast.co.uk/sites/ftp.apache.org/hbase/stable/hbase-0.94.14.tar.gz 
+tar xfz hbase-0.94.14.tar.gz 
+rm -f hbase-0.94.14.tar.gz
+mv hbase-0.94.14 hbase
+echo "Installing java"
+yum -y -q install java-1.7*
+cd hbase  
+service iptables stop 
+chkconfig iptables off
+echo "" > /etc/hosts
+echo "export JAVA_HOME=/usr/lib/jvm/java-1.7.0/jre" >> conf/hbase-env.sh 
+/opt/hbase/bin/start-hbase.sh
+/opt/hbase/bin/hbase-daemon.sh start rest -p 8080

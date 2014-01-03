@@ -1,0 +1,21 @@
+#!/bin/bash
+service iptables stop 
+chkconfig iptables off 
+ulimit -n 999999
+sysctl -w net.ipv4.tcp_tw_reuse=1
+sysctl -w net.ipv4.tcp_tw_recycle=1
+echo "Installing java expect"
+yum -y -q install expect java-1.7*
+hostname region1
+export HOSTNAME=region1 
+rm -f "/root/.ssh/id_rsa"
+ssh-keygen -t rsa -P "" -f "/root/.ssh/id_rsa"
+echo "Setting passwordless shh to master" 
+expect <<EOD
+spawn ssh-copy-id root@master
+expect "*you want to continue*"
+send -- "yes\r"
+expect "*?assword:*"
+send -- "wpTestDbNodePassword1122334455\r"
+expect eof
+EOD

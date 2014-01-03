@@ -1,0 +1,31 @@
+#!/bin/bash     
+. openTsdb-v2/settings
+. current_run_settings
+
+SCRIPT_ID=$1
+DB_HOST_LOCAL_VAR="DB_HOST_$SCRIPT_ID"
+DB_HOST_LOCAL=${!DB_HOST_LOCAL_VAR}
+
+function insert_test_result {
+	echo "put $DB_NAME.type$2 $4 $3 deviceid=$1" | nc -w 15 $DB_HOST_LOCAL $DB_PORT || exit 1
+}
+
+function generateData {
+	local gdbasetime=$(date +%s%N)
+	for ((testSuite=0;testSuite<$nTestsPerDevice;testSuite++))
+	do		
+		local ts=$(($testSuite+$START_TIMESTAMP))
+		for ((deviceId=$1;deviceId<=$2;deviceId++))
+		do
+			insert_test_result $deviceId 1 1.0 $ts
+			insert_test_result $deviceId 2 2.0 $ts
+			insert_test_result $deviceId 3 3.0 $ts
+		done
+	done
+	echo "$HOSTNAME Script $SCRIPT_ID: generatedData: $(echo "scale=3;($(date +%s%N) - ${gdbasetime})/(1*10^09)" | bc) seconds"
+}
+
+echo "$HOSTNAME Script $SCRIPT_ID: started (ids: $2 - $3)..."
+echo "$HOSTNAME Script $SCRIPT_ID: generating data..."
+generateData $2 $3
+

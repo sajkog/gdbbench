@@ -1,0 +1,22 @@
+#!/bin/bash
+. ../setup/include/settings
+. ../setup/include/functions
+. ../setup/include/settings_spammer
+. include/settings_hbase
+
+setupPaswordless $HBASE_MASTER_LOCAL_IP $HBASE_MASTER_SERVER_PASSWORD
+
+scpCopy "scripts/benchmark_setup_hbase_horizontal" $HBASE_MASTER_LOCAL_IP "/opt"
+
+printf "$HBASE_MASTER_LOCAL_IP master \n$HBASE_REGION_LOCAL_IP_1 region1 \n$HBASE_REGION_LOCAL_IP_2 region2" > tmp/master_hosts
+scpCopy "tmp/master_hosts" $HBASE_MASTER_LOCAL_IP "/etc/hosts"
+rm -f tmp/master_hosts
+
+executeScriptRemotely "scripts/hbase_master_remote" $HBASE_MASTER_LOCAL_IP
+
+echo "#!/bin/bash
+DB_PORT=\"$HBASE_DB_PORT\"
+DB_NAME=\"$HBASE_USE_DB_NAME\" 
+aDbHosts=($HBASE_REGION_LOCAL_IP_1 $HBASE_REGION_LOCAL_IP_2)" > tmp/hbase_settings
+
+copySettingsToAllSpammers "tmp/hbase_settings" "scripts/hbase-h2/settings"

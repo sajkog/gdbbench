@@ -1,0 +1,21 @@
+#!/bin/bash   
+. settings || exit 1
+
+dbHost1="http://${aDbHosts[0]}:$DB_PORT"
+dbHost2="http://${aDbHosts[1]}:$DB_PORT"
+
+url1="http://${aDbHosts[0]}:$DB_PORT/$DB_NAME"
+url2="http://${aDbHosts[1]}:$DB_PORT/$DB_NAME"
+echo 'Creating database...'
+echo '  dropping old db if exists...'
+cdbasetime=$(date +%s%N)
+curl -X DELETE $url1 || exit 1
+curl -X DELETE $url2 || exit 1
+echo '  adding new structure...'
+curl -X PUT $url1 || exit 1
+curl -X PUT $url2 || exit 1
+echo '  setting up replication...'
+curl -H "Content-Type: application/json" -X POST $dbHost1/_replicate -d '{"source":"'$DB_NAME'", "target":"'$dbHost2'/'$DB_NAME'", "continuous":true}'
+curl -H "Content-Type: application/json" -X POST $dbHost2/_replicate -d '{"source":"'$DB_NAME'", "target":"'$dbHost1'/'$DB_NAME'", "continuous":true}'
+echo "scale=3;($(date +%s%N) - ${cdbasetime})/(1*10^09)" | bc || exit 1
+echo 'Database created'

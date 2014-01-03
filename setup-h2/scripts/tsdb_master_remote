@@ -1,0 +1,126 @@
+#!/bin/bash
+####FUNCTIONS####
+setupPaswordless() {
+echo "Setting passwordless shh to $1"
+expect <<EOD
+spawn ssh-copy-id root@$1
+expect "*you want to continue*"
+send -- "yes\r"
+expect "*?assword:*"
+send -- "$2\r"
+expect eof
+EOD
+}
+####SETTINGS###
+PASSWORD="#p@swd!srt2539471"
+
+ulimit -n 999999
+sysctl -w net.ipv4.tcp_tw_reuse=1
+sysctl -w net.ipv4.tcp_tw_recycle=1
+hostname master  
+export HOSTNAME=master
+echo "Installing java expect"
+yum -y -q install expect java-1.7*
+
+echo "Creating ssh key" 
+ssh-keygen -t rsa -P "" -f "/root/.ssh/id_rsa"
+setupPaswordless master $PASSWORD
+setupPaswordless region1 $PASSWORD
+setupPaswordless region2 $PASSWORD
+setupPaswordless daemon1 $PASSWORD
+setupPaswordless daemon2 $PASSWORD
+
+scp /etc/hosts root@region1:/etc
+scp /etc/hosts root@region2:/etc
+scp /etc/hosts root@daemon1:/etc
+scp /etc/hosts root@daemon2:/etc
+
+service iptables stop 
+chkconfig iptables off 
+
+scp /opt/benchmark_setup_tsdb_horizontal/region_remote1 root@region1:/opt
+scp /opt/benchmark_setup_tsdb_horizontal/region_remote2 root@region2:/opt
+ssh region1 "/opt/region_remote1" &
+wait
+ssh region2 "/opt/region_remote2" &
+wait
+ 
+cd /opt
+echo "Donwloading hadoop"
+wget -q http://mirrors.ukfast.co.uk/sites/ftp.apache.org/hadoop/common/hadoop-1.2.1/hadoop-1.2.1.tar.gz
+tar -xzf hadoop-1.2.1.tar.gz
+mv hadoop-1.2.1 hadoop
+mkdir /opt/hadoop/datastore
+cp -f /opt/benchmark_setup_tsdb_horizontal/hadoop/core-site.xml  /opt/hadoop/conf/core-site.xml
+cp -f /opt/benchmark_setup_tsdb_horizontal/hadoop/mapred-site.xml  /opt/hadoop/conf/mapred-site.xml
+cp -f /opt/benchmark_setup_tsdb_horizontal/hadoop/hdfs-site.xml  /opt/hadoop/conf/hdfs-site.xml
+ 
+printf "export JAVA_HOME=/usr/lib/jvm/java-1.7.0/jre \nexport HADOOP_HOME=/opt/hadoop \nexport HADOOP_CONF_DIR=/opt/hadoop/conf" >>/opt/hadoop/conf/hadoop-env.sh 
+
+echo "Copying hadoop to region and daemon servers"
+scp -r -q /opt/hadoop root@region1:/opt
+scp -r -q /opt/hadoop root@region2:/opt
+
+printf "region1\nregion2" > /opt/hadoop/conf/slaves
+echo "master" > /opt/hadoop/conf/masters
+/opt/hadoop/bin/hadoop namenode -format   
+
+/opt/hadoop/bin/start-all.sh &
+wait
+
+echo "Setting up hbase"
+
+cd /opt
+echo "Downloading hbase"
+wget -q http://mirrors.ukfast.co.uk/sites/ftp.apache.org/hbase/stable/hbase-0.94.14.tar.gz
+tar xfz hbase-0.94.14.tar.gz 
+mv hbase-0.94.14 hbase
+
+cp hadoop/*.jar hbase/lib/
+
+printf "\nexport HBASE_MANAGES_ZK=true\nexport JAVA_HOME=/usr/lib/jvm/java-1.7.0/jre\nexport HBASE_CLASSPATH=/opt/hadoop/conf\n" >> /opt/hbase/conf/hbase-env.sh 
+
+cp -f /opt/benchmark_setup_tsdb_horizontal/hbase/hbase-site.xml  /opt/hbase/conf/hbase-site.xml
+
+printf "region1\nregion2" > /opt/hbase/conf/regionservers   
+  
+echo "Copying configured hbase to region servers"
+scp -r -q /opt/hbase root@region1:/opt/
+scp -r -q /opt/hbase root@region2:/opt/
+
+/opt/hbase/bin/start-hbase.sh &
+wait
+echo 'Sleeping 10s'
+sleep 10
+
+#####OPENT TSDB ON MASTER######
+echo "Installing gnuplot and make"
+yum -y -q install gnuplot make  
+echo "Downloading opentsdb"
+cd /opt
+wget -q https://opentsdb.googlecode.com/files/opentsdb-1.1.0.tar.gz
+tar zxvf opentsdb-1.1.0.tar.gz 
+rm -f opentsdb-1.1.0.tar.gz 
+mv opentsdb-1.1.0 opentsdb
+
+
+rm -f /opt/opentsdb/third_party/zookeeper/zookeeper-3.3.6.jar
+cp /opt/hbase/lib/zookeeper-3.4.5.jar /opt/opentsdb/third_party/zookeeper/
+
+cd /opt/opentsdb 
+./build.sh &
+wait
+      
+#mkdir /tmp/tsd 
+env COMPRESSION=NONE HBASE_HOME=/opt/hbase/ /opt/opentsdb/src/create_table.sh  
+
+echo "Copying opentsdb to daemon servers"
+scp -r -q /opt/opentsdb root@daemon1:/opt/
+scp -r -q /opt/opentsdb root@daemon2:/opt/
+
+scp /opt/benchmark_setup_tsdb_horizontal/daemon_remote1 root@daemon1:/opt
+scp /opt/benchmark_setup_tsdb_horizontal/daemon_remote2 root@daemon2:/opt
+ssh daemon1 "/opt/daemon_remote1" & 
+wait
+ssh daemon2 "/opt/daemon_remote2"&
+wait

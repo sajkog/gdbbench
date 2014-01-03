@@ -1,0 +1,53 @@
+#!/bin/bash  
+. hbase-v2/settings
+. current_run_settings
+
+SCRIPT_ID=$1
+DB_HOST_LOCAL_VAR="DB_HOST_$SCRIPT_ID"
+DB_HOST_LOCAL=${!DB_HOST_LOCAL_VAR}
+
+function encode {
+  echo $1 | tr -d "\n" | base64
+}
+ 
+function decode {
+  echo $1 | base64 -D
+}
+
+function insert_test_result {
+	local TIME=$(encode $5)
+	local VALUE=$(encode $4)
+	local TCOLUMN=$(encode 'data:time')
+	local RCOLUMN=$(encode 'data:result')
+	local KEY=$(encode "$1-$2-$3")
+
+	curl -s -X PUT http://$DB_HOST_LOCAL:$DB_PORT/$DB_NAME/$1-$2-$3/data:time \
+	  -H "Accept: application/json" \
+	  -H "Content-Type: application/json" \
+	  -d "{\"Row\":{\"@key\":\"$KEY\",\"Cell\":{\"@column\":\"$TCOLUMN\", \"$\":\"$TIME\"}}}" || exit 1
+
+	curl -s -X PUT http://$DB_HOST_LOCAL:$DB_PORT/$DB_NAME/$1-$2-$3/data:result \
+	  -H "Accept: application/json" \
+	  -H "Content-Type: application/json" \
+	  -d "{\"Row\":{\"@key\":\"$KEY\",\"Cell\":{\"@column\":\"$RCOLUMN\", \"$\":\"$VALUE\"}}}" || exit 1
+}
+
+function generateData {
+	local gdbasetime=$(date +%s%N)
+	for ((testSuite=0;testSuite<$nTestsPerDevice;testSuite++))
+	do		
+		local ts=$(($testSuite+$START_TIMESTAMP))
+		for ((deviceId=$1;deviceId<=$2;deviceId++))
+		do
+			insert_test_result $deviceId 1 $testSuite 1.0 $ts
+			insert_test_result $deviceId 2 $testSuite 2.0 $ts
+			insert_test_result $deviceId 3 $testSuite 3.0 $ts
+		done
+	done
+	echo "$HOSTNAME Script $SCRIPT_ID: generatedData: $(echo "scale=3;($(date +%s%N) - ${gdbasetime})/(1*10^09)" | bc) seconds"
+}
+
+echo "$HOSTNAME Script $SCRIPT_ID: started (ids: $2 - $3)..."
+echo "$HOSTNAME Script $SCRIPT_ID: generating data..."
+generateData $2 $3 $4
+

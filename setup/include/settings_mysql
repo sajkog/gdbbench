@@ -1,0 +1,5 @@
+#!/bin/bash  
+MYSQL_LOCAL_IP_1=""
+MYSQL_USE_DB_NAME="masterDb"
+MYSQL_SET_PASSWORD="test"
+MYSQL_SERVER_PASSWORD="#p@swd!srt2539471"

@@ -1,0 +1,16 @@
+#!/bin/bash
+. settings || exit 1
+
+DB_HOST=${aDbHosts[0]}
+echo "Creating database..."
+cdbasetime=$(date +%s%N)
+echo '  adding new structure...'
+ssh root@$DB_HOST 'tsdb mkmetric '$DB_NAME'.type1'  --zkquorum=$ZK_QUORUM
+ssh root@$DB_HOST 'tsdb mkmetric '$DB_NAME'.type2'  --zkquorum=$ZK_QUORUM
+ssh root@$DB_HOST 'tsdb mkmetric '$DB_NAME'.type3'  --zkquorum=$ZK_QUORUM
+echo '  dropping old data...'
+ssh root@$DB_HOST 'tsdb scan 2011/01/01 sum  '$DB_NAME'.type1 --delete --zkquorum='$ZK_QUORUM > /dev/null
+ssh root@$DB_HOST 'tsdb scan 2011/01/01 sum  '$DB_NAME'.type2 --delete --zkquorum='$ZK_QUORUM > /dev/null
+ssh root@$DB_HOST 'tsdb scan 2011/01/01 sum  '$DB_NAME'.type3 --delete --zkquorum='$ZK_QUORUM > /dev/null
+echo "scale=3;($(date +%s%N) - ${cdbasetime})/(1*10^09)" | bc
+echo 'Database created'

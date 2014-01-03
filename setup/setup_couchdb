@@ -1,0 +1,19 @@
+#!/bin/bash
+. include/settings
+. include/functions
+. include/settings_spammer
+. include/settings_couch
+
+setupPaswordless $COUCH_LOCAL_IP_1 $COUCH_SERVER_PASSWORD
+
+executeScriptRemotely "scripts/couch_remote" $COUCH_LOCAL_IP_1
+
+echo "#!/bin/bash
+DB_PORT=\"$COUCH_DB_PORT\"
+DB_NAME=\"$COUCH_USE_DB_NAME\" 
+aDbHosts=($COUCH_LOCAL_IP_1)" > tmp/couch_settings
+
+copySettingsToAllSpammers "tmp/couch_settings" "scripts/couchdb/settings"
+
+redEcho "Checking couchdb response. Expect Welcome..."
+curl http://$COUCH_LOCAL_IP_1:$COUCH_DB_PORT

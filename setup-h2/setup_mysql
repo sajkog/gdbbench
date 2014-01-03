@@ -1,0 +1,57 @@
+#!/bin/bash
+. ../setup/include/settings
+. ../setup/include/functions
+. ../setup/include/settings_spammer
+. include/settings_mysql
+
+setupPaswordless $MYSQL_MASTER_LOCAL_IP $MYSQL_SERVER_PASSWORD 
+
+tar -xzf mysqlcluster-73-rpm.tar.gz
+scpCopy "mysqlcluster-73-rpm" $MYSQL_MASTER_LOCAL_IP "/opt"
+rm -f -r  mysqlcluster-73-rpm
+
+printf "#!/bin/bash\nMYSQL_MGMD_IP_1=\"$MYSQL_MGMD_IP_1\"\MYSQL_MGMD_IP_2=\"$MYSQL_MGMD_IP_2"\nMYSQL_API_NODE_LOCAL_IP_1=\"$MYSQL_API_NODE_LOCAL_IP_1\"\nMYSQL_API_NODE_LOCAL_IP_2=\"$MYSQL_API_NODE_LOCAL_IP_2\"\nMYSQL_DATA_NODE_LOCAL_IP_1=\"$MYSQL_DATA_NODE_LOCAL_IP_1\"\nMYSQL_DATA_NODE_LOCAL_IP_2=\"$MYSQL_DATA_NODE_LOCAL_IP_2\"\nPASSWORD=\"$MYSQL_SERVER_PASSWORD\"\n" > tmp/mysql_remote
+cat scripts/mysql_remote >> tmp/mysql_remote
+
+scpCopy "tmp/mysql_remote" $MYSQL_MASTER_LOCAL_IP "/opt/"
+
+ssh $MYSQL_MASTER_LOCAL_IP "/opt/mysql_remote" 
+ 
+ssh $MYSQL_MASTER_LOCAL_IP "cd /opt/mysqlcluster-73-rpm/cluster/scripts/tools/ && ./execute-all-mysql.sh -uroot -ptest  -e \"GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY 'test'; \""
+
+echo "#!/bin/bash  
+DB_NAME=\"$MYSQL_USE_DB_NAME\"     
+export MYSQL_PWD=$MYSQL_SET_PASSWORD
+aDbHosts=($MYSQL_API_NODE_LOCAL_IP_1 $MYSQL_API_NODE_LOCAL_IP_2)" > tmp/mysql_settings
+
+copySettingsToAllSpammers "tmp/mysql_settings" "scripts/mysql-h2/settings"
+
+echo "DROP DATABASE IF EXISTS \`$MYSQL_USE_DB_NAME\`;
+CREATE DATABASE \`$MYSQL_USE_DB_NAME\`;
+USE $MYSQL_USE_DB_NAME;
+CREATE TABLE \`device\` (
+	\`deviceid\` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+	\`name\` VARCHAR(255) NOT NULL,
+	PRIMARY KEY (\`deviceid\`)
+)
+COLLATE='latin1_swedish_ci'
+ENGINE=NDBCLUSTER;
+
+CREATE TABLE \`test\` (
+	\`testid\` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+	\`deviceid\` INT UNSIGNED NOT NULL,
+	\`type\` INT UNSIGNED NOT NULL,
+	PRIMARY KEY (\`testid\`)
+)
+COLLATE='latin1_swedish_ci'
+ENGINE=NDBCLUSTER;
+
+CREATE TABLE \`testresult\` (
+	\`testresultid\` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+	\`testid\` INT UNSIGNED NOT NULL,
+	\`date\` INT(10) NOT NULL,
+	\`value\` FLOAT NOT NULL,
+	PRIMARY KEY (\`testresultid\`)
+)
+COLLATE='latin1_swedish_ci'
+ENGINE=NDBCLUSTER;" > $BENCHMARK_FOLDER/benchmarkScripts/scripts/mysql-h2/data/db_mysql.sql

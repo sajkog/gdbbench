@@ -1,0 +1,24 @@
+#!/bin/bash
+. ../setup/include/settings
+. ../setup/include/functions
+. ../setup/include/settings_spammer
+. include/settings_tsdb
+
+setupPaswordless $HBASE_MASTER_LOCAL_IP $HBASE_MASTER_SERVER_PASSWORD
+setupPaswordless $TSDB_DAEMON_LOCAL_IP_1 $TSDB_DAEMON_SERVER_PASSWORD_1
+setupPaswordless $TSDB_DAEMON_LOCAL_IP_2 $TSDB_DAEMON_SERVER_PASSWORD_2
+
+scpCopy "scripts/benchmark_setup_tsdb_horizontal" $HBASE_MASTER_LOCAL_IP "/opt"
+
+printf "$HBASE_MASTER_LOCAL_IP master \n$HBASE_REGION_LOCAL_IP_1 region1 \n$HBASE_REGION_LOCAL_IP_2 region2\n$TSDB_DAEMON_LOCAL_IP_1 daemon1 \n$TSDB_DAEMON_LOCAL_IP_2  daemon2" > tmp/master_hosts
+scpCopy "tmp/master_hosts" $HBASE_MASTER_LOCAL_IP "/etc/hosts"
+rm -f tmp/master_hosts
+executeScriptRemotely "scripts/tsdb_master_remote" $HBASE_MASTER_LOCAL_IP
+
+echo "#!/bin/bash
+DB_PORT=\"$TSDB_DB_PORT\"
+DB_NAME=\"$TSDB_USE_DB_NAME\" 
+aDbHosts=($TSDB_DAEMON_LOCAL_IP_1 $TSDB_DAEMON_LOCAL_IP_2)
+ZK_QUORUM=\"master:2222\"" > tmp/tsdb_settings
+
+copySettingsToAllSpammers "tmp/tsdb_settings" "scripts/openTsdb-h2/settings"

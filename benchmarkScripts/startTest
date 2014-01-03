@@ -1,0 +1,46 @@
+#!/bin/bash  
+
+DB_TESTED=$1
+. global_settings || exit 1
+
+#generate current run settings
+rm -f scripts/current_run_settings
+cp global_settings scripts/current_run_settings
+echo " " >> scripts/current_run_settings
+
+#set db host to be used by each test process 
+. scripts/$DB_TESTED/settings || exit 1
+COUNTER=0
+while [  $COUNTER -lt $nProcessCountPerServer ]; do
+	for dbHost in ${aDbHosts[@]}; do
+		echo $"DB_HOST_$COUNTER=$dbHost" >> scripts/current_run_settings
+		let COUNTER=COUNTER+1 
+	done
+done
+
+#recreate current run folder on all spammer servers
+for i in ${aSpammerServers[@]}; do
+	ssh root@$i "rm -d -f -r $REMOTE_CURRENT_RUN_PATH && mkdir $REMOTE_CURRENT_RUN_PATH && ntpdate -b pool.ntp.org" || exit 1
+	scp -q -r scripts/* root@$i:$REMOTE_CURRENT_RUN_PATH || exit 1
+done
+rm -f scripts/current_run_settings
+
+#recreate database
+cd ./scripts/$DB_TESTED/
+./recreate_database || exit 1
+cd ../../
+
+nCurrentStart=0
+
+spambasetime=$(date +%s%N)
+for i in ${aSpammerServers[@]}; do
+	(ssh root@$i "cd $REMOTE_CURRENT_RUN_PATH && ./run_test $DB_TESTED $nCurrentStart") &
+	nCurrentStart=$(($nDevicesPerProcess*$nProcessCountPerServer+$nCurrentStart))
+done
+wait
+echo "spam tests: $(echo "scale=3;($(date +%s%N) - ${spambasetime})/(1*10^09)" | bc) seconds"
+
+#remove current run folder on all spammer servers
+for i in ${aSpammerServers[@]}; do
+	ssh root@$i "rm -d -f -r $REMOTE_CURRENT_RUN_PATH"
+done

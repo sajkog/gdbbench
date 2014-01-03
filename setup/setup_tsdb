@@ -1,0 +1,16 @@
+#!/bin/bash
+. include/settings
+. include/functions
+. include/settings_spammer
+. include/settings_tsdb
+
+setupPaswordless $TSDB_LOCAL_IP_1 $TSDB_SERVER_PASSWORD
+
+executeScriptRemotely "scripts/tsdb_remote" $TSDB_LOCAL_IP_1
+
+echo "#!/bin/bash
+DB_PORT=\"$TSDB_DB_PORT\"
+DB_NAME=\"$TSDB_USE_DB_NAME\" 
+aDbHosts=($TSDB_LOCAL_IP_1)" > tmp/tsdb_settings
+
+copySettingsToAllSpammers "tmp/tsdb_settings" "scripts/openTsdb/settings"

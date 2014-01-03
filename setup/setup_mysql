@@ -1,0 +1,83 @@
+#!/bin/bash
+. include/settings
+. include/functions
+. include/settings_spammer
+. include/settings_mysql
+
+setupPaswordless $MYSQL_LOCAL_IP_1 $MYSQL_SERVER_PASSWORD
+
+redEcho "Downloading mysql"
+wget http://dev.mysql.com/get/Downloads/MySQL-5.6/$MYSQL_TAR_NAME/from/http://cdn.mysql.com/
+redEcho "Unpacking mysql"
+tar xvf $MYSQL_TAR_NAME
+
+scpCopy "MySQL*.rpm" $MYSQL_LOCAL_IP_1 "/opt"
+rm -f M*
+
+echo "#!/bin/bash  
+yum -y install expect
+cd /opt
+echo \"Installing MySQL\"
+yum -y -q localinstall MySQL*
+chkconfig mysql off
+rm -f -d M*
+service mysql start
+
+MPASSWORD=\`cat ~/.mysql_secret |grep random|cut -d: -f4-|sed 's| ||g'|tail -1\` 
+echo \"using password=\$MPASSWORD\"
+expect <<EOD
+spawn mysql -u root -p 
+expect \"*password*\"
+send -- \"\$MPASSWORD\r\"
+expect \"mysql>\"
+send -- \"SET PASSWORD = PASSWORD('$MYSQL_SET_PASSWORD');GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '$MYSQL_SET_PASSWORD';FLUSH PRIVILEGES;exit;\r\"
+expect eof
+EOD
+ 
+echo \"\" > /etc/hosts
+service iptables stop 
+chkconfig iptables off
+
+echo \"Instaling mytop\"
+rpm -Uhv http://apt.sw.be/redhat/el5/en/i386/rpmforge/RPMS/rpmforge-release-0.3.6-1.el5.rf.i386.rpm
+yum -y -q install mytop
+" > tmp/mysql_remote.sh
+
+executeScriptRemotely "tmp/mysql_remote.sh" $MYSQL_LOCAL_IP_1
+
+echo "#!/bin/bash  
+DB_NAME=\"$MYSQL_USE_DB_NAME\"     
+export MYSQL_PWD=$MYSQL_SET_PASSWORD
+aDbHosts=($MYSQL_LOCAL_IP_1)" > tmp/mysql_settings
+
+copySettingsToAllSpammers "tmp/mysql_settings" "scripts/mysql/settings"
+
+echo "DROP DATABASE IF EXISTS \`$MYSQL_USE_DB_NAME\`;
+CREATE DATABASE \`$MYSQL_USE_DB_NAME\`;
+USE $MYSQL_USE_DB_NAME;
+CREATE TABLE \`device\` (
+	\`deviceid\` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+	\`name\` VARCHAR(255) NOT NULL,
+	PRIMARY KEY (\`deviceid\`)
+)
+COLLATE='latin1_swedish_ci'
+ENGINE=InnoDB;
+
+CREATE TABLE \`test\` (
+	\`testid\` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+	\`deviceid\` INT UNSIGNED NOT NULL,
+	\`type\` INT UNSIGNED NOT NULL,
+	PRIMARY KEY (\`testid\`)
+)
+COLLATE='latin1_swedish_ci'
+ENGINE=InnoDB;
+
+CREATE TABLE \`testresult\` (
+	\`testresultid\` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+	\`testid\` INT UNSIGNED NOT NULL,
+	\`date\` INT(10) NOT NULL,
+	\`value\` FLOAT NOT NULL,
+	PRIMARY KEY (\`testresultid\`)
+)
+COLLATE='latin1_swedish_ci'
+ENGINE=InnoDB;" > $BENCHMARK_FOLDER/benchmarkScripts/scripts/mysql/data/db_mysql.sql

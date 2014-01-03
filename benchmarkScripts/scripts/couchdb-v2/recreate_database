@@ -1,0 +1,13 @@
+#!/bin/bash   
+. settings || exit 1
+
+url="http://${aDbHosts[0]}:$DB_PORT/$DB_NAME"
+echo 'Creating database...'
+echo '  dropping old db if exists...'
+cdbasetime=$(date +%s%N)
+curl -X DELETE $url || exit 1
+echo '  adding new structure...'
+curl -X PUT $url || exit 1
+echo "scale=3;($(date +%s%N) - ${cdbasetime})/(1*10^09)" | bc || exit 1
+echo 'Database created'
+

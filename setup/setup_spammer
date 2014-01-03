@@ -1,0 +1,54 @@
+#!/bin/bash
+. include/settings
+. include/functions
+. include/settings_spammer
+
+redEcho "Set all permissions on $BENCHMARK_FOLDER" 
+chmod 0777 -R $BENCHMARK_FOLDER*
+
+redEcho "Downloading mysql"
+wget http://dev.mysql.com/get/Downloads/MySQL-5.6/$MYSQL_TAR_NAME/from/http://cdn.mysql.com/
+redEcho "Unpacking mysql"
+tar xvf $MYSQL_TAR_NAME
+
+redEcho "Local: Install nc, expect and mysql. Change ulimit. Set port reuse/recycle"
+. scripts/spammer_local
+
+createSshKey
+
+
+setupPaswordless $SPAMMER_LOCAL_IP_1 $SPAMMER_PASSWORD_1
+setupPaswordless $SPAMMER_LOCAL_IP_2 $SPAMMER_PASSWORD_2
+setupPaswordless $SPAMMER_LOCAL_IP_3 $SPAMMER_PASSWORD_3
+setupPaswordless $SPAMMER_LOCAL_IP_4 $SPAMMER_PASSWORD_4
+
+#create benchmark folder
+redEcho "Create fodler on other spammers $BENCHMARK_FOLDER"
+ssh $SPAMMER_LOCAL_IP_2 "mkdir $BENCHMARK_FOLDER"
+ssh $SPAMMER_LOCAL_IP_3 "mkdir $BENCHMARK_FOLDER"
+ssh $SPAMMER_LOCAL_IP_4 "mkdir $BENCHMARK_FOLDER"
+
+#copy to all spammers
+scpCopy "MySQL*.rpm" $SPAMMER_LOCAL_IP_2 $BENCHMARK_FOLDER
+scpCopy "MySQL*.rpm" $SPAMMER_LOCAL_IP_3 $BENCHMARK_FOLDER
+scpCopy "MySQL*.rpm" $SPAMMER_LOCAL_IP_4 $BENCHMARK_FOLDER
+
+cd $BENCHMARK_FOLDER/setup
+rm -f M*
+
+redEcho "$SPAMMER_LOCAL_IP_2: Install nc, expect and mysql. Change ulimit. Set port reuse/recycle"
+executeScriptRemotely "scripts/spammer_remote" $SPAMMER_LOCAL_IP_2
+redEcho "$SPAMMER_LOCAL_IP_3: Install nc, expect and mysql. Change ulimit. Set port reuse/recycle"
+executeScriptRemotely "scripts/spammer_remote" $SPAMMER_LOCAL_IP_3
+redEcho "$SPAMMER_LOCAL_IP_4: Install nc, expect and mysql. Change ulimit. Set port reuse/recycle"
+executeScriptRemotely "scripts/spammer_remote" $SPAMMER_LOCAL_IP_4
+
+redEcho "Clean hosts file"
+echo "" > /etc/hosts 
+
+copySetupToOtherSpammers $SPAMMER_LOCAL_IP_2 $SPAMMER_LOCAL_IP_3 $SPAMMER_LOCAL_IP_4
+
+cd $BENCHMARK_FOLDER/setup
+. scripts/setup_global_settings
+
+redEcho "Finished"

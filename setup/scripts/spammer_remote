@@ -1,0 +1,10 @@
+#!/bin/bash  
+ulimit -n 999999
+sysctl -w net.ipv4.tcp_tw_reuse=1
+sysctl -w net.ipv4.tcp_tw_recycle=1
+echo "Installing  nc"
+yum -y -q install nc
+echo "Installing MySQL"
+yum -y -q localinstall /opt/benchmark/MySQL*
+chkconfig mysql off
+rm -f /opt/benchmark/MySQL*

@@ -1,0 +1,55 @@
+#!/bin/bash           
+. mysql/settings
+. current_run_settings
+SCRIPT_ID=$1
+DB_HOST_LOCAL_VAR="DB_HOST_$SCRIPT_ID"
+DB_HOST_LOCAL=${!DB_HOST_LOCAL_VAR}
+
+function insert_device {
+	mysql -h $DB_HOST_LOCAL -u root -e 'INSERT INTO `device` (`deviceid`,`name`) VALUES ('"$1,'device_$1'"');' $DB_NAME || exit 1
+}
+
+function insert_test {
+	mysql -h $DB_HOST_LOCAL  -u root -e 'INSERT INTO `test` (`testid`,`deviceid`, `type`) VALUES ('"'$1', '$2', '$3'"');' $DB_NAME || exit 1
+}
+
+function insert_test_result {
+	mysql -h $DB_HOST_LOCAL  -u root -e 'INSERT INTO `testresult` (`testresultid`,`testid`,`date`,`value`) VALUES ('"'$1', '$2', '$3', '$4'"');' $DB_NAME || exit 1
+}
+
+function generateStructure {
+	local gsbasetime=$(date +%s%N)
+	for (( deviceId=$1; deviceId <= $2; deviceId++ ))
+	do
+		insert_device $deviceId
+		insert_test $(($deviceId*3-2)) $deviceId 1
+		insert_test $(($deviceId*3-1)) $deviceId 2
+		insert_test $(($deviceId*3)) $deviceId 3
+	done
+	echo "$HOSTNAME Script $SCRIPT_ID: generatedStructure: $(echo "scale=3;($(date +%s%N) - ${gsbasetime})/(1*10^09)" | bc) seconds"
+}
+
+function generateData {
+	local gdbasetime=$(date +%s%N)
+	for ((testSuite=0;testSuite<$nTestsPerDevice;testSuite++))
+	do
+		insertDeviceResults $1 $2 $(($testSuite*1000000)) $(($testSuite+$START_TIMESTAMP))
+	done
+	echo "$HOSTNAME Script $SCRIPT_ID: generatedData: $(echo "scale=3;($(date +%s%N) - ${gdbasetime})/(1*10^09)" | bc) seconds"
+}
+
+function insertDeviceResults {
+	for ((deviceId=$1;deviceId<=$2;deviceId++))
+	do
+		insert_test_result $(($deviceId*3-2+$3)) $(($deviceId*3-2)) $4 1.0
+		insert_test_result $(($deviceId*3-1+$3)) $(($deviceId*3-1)) $4 2.0
+		insert_test_result $(($deviceId*3+$3)) $(($deviceId*3)) $4 3.0
+	done
+}
+
+echo "$HOSTNAME Script $SCRIPT_ID: started (ids: $2 - $3)..."
+echo "$HOSTNAME Script $SCRIPT_ID: generating structure..."
+generateStructure $2 $3
+echo "$HOSTNAME Script $SCRIPT_ID: generating data..."
+generateData $2 $3
+

@@ -1,0 +1,10 @@
+#!/bin/bash 
+echo "#!/bin/bash  
+nProcessCountPerServer=10
+nDevicesPerProcess=10
+nTestsPerDevice=100
+REMOTE_CURRENT_RUN_PATH=\"$BENCHMARK_FOLDER/benchmarkScripts/currentRun\"
+START_TIMESTAMP=1380500000
+aSpammerServers=($SPAMMER_LOCAL_IP_1 $SPAMMER_LOCAL_IP_2 $SPAMMER_LOCAL_IP_3 $SPAMMER_LOCAL_IP_4)" > $BENCHMARK_FOLDER/setup/tmp/global_settings
+
+copySettingsToAllSpammers "tmp/global_settings" "global_settings"

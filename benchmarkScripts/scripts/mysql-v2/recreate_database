@@ -1,0 +1,13 @@
+#!/bin/bash            
+. settings || exit 1
+
+function createDatabase {
+	echo 'Creating database...'
+	local cdbasetime=$(date +%s%N)
+	mysql -h ${aDbHosts[0]} -u root -e "source data/db_mysql.sql" || exit 1
+	echo "scale=3;($(date +%s%N) - ${cdbasetime})/(1*10^09)" | bc
+	echo 'Database created'
+}
+
+createDatabase
+

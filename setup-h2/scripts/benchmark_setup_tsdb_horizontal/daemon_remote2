@@ -1,0 +1,21 @@
+#!/bin/bash
+service iptables stop 
+chkconfig iptables off 
+ulimit -n 999999
+sysctl -w net.ipv4.tcp_tw_reuse=1
+sysctl -w net.ipv4.tcp_tw_recycle=1
+echo "Installing java, make and gnuplot"
+yum -y -q install java-1.7* make gnuplot
+hostname daemon2
+service iptables stop 
+chkconfig iptables off 
+export HOSTNAME=daemon2
+cd /opt/opentsdb 
+./build.sh &
+wait
+cd build
+make install
+
+mkdir /tmp/tsd    
+nohup tsdb tsd --port=4242 --staticroot=/opt/opentsdb/build/staticroot --cachedir=/tmp/tsd --worker-threads=4 >/opt/tsdb_deamon.out --zkquorum=master:2222 2>&1 &
+echo $! > /opt/daemon.pid

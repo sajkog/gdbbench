@@ -1,0 +1,35 @@
+#!/bin/bash
+. couchdb-v2/settings
+. current_run_settings
+
+SCRIPT_ID=$1
+DB_HOST_LOCAL_VAR="DB_HOST_$SCRIPT_ID"
+DB_HOST_LOCAL=${!DB_HOST_LOCAL_VAR}
+mkdir -p couchdb/logs
+RUN_LOG="couchdb/logs/run_$SCRIPT_ID.log"
+
+function insert_test_result {
+	curl -s -X PUT http://$DB_HOST_LOCAL:$DB_PORT/$DB_NAME/$1-$2-$3 -d '{"deviceid":'$1',"type":'$2', "value":'$4', "date" : ['$5','$6','$7','$8','$9','${10}', '${11}' ]}' >> $RUN_LOG
+}
+
+function generateData {
+	local gdbasetime=$(date +%s%N)
+	for ((testSuite=0;testSuite<$nTestsPerDevice;testSuite++))
+	do		
+		seconds=$(( $testSuite % 60 ))
+		minutes=$(( $testSuite / 60 ))
+		for ((deviceId=$1;deviceId<=$2;deviceId++))
+		do
+			insert_test_result $deviceId 1 $testSuite 1.0 2013 10 14 2 50 $minutes $seconds
+			insert_test_result $deviceId 2 $testSuite 2.0 2013 10 14 2 50 $minutes $seconds
+			insert_test_result $deviceId 3 $testSuite 2.0 2013 10 14 2 50 $minutes $seconds
+		done
+	done
+	echo "$HOSTNAME Script $SCRIPT_ID: generatedData: $(echo "scale=3;($(date +%s%N) - ${gdbasetime})/(1*10^09)" | bc) seconds"
+}
+
+echo "$HOSTNAME Script $SCRIPT_ID: started (ids: $2 - $3)..."
+echo "" > $RUN_LOG;
+echo "$HOSTNAME Script $SCRIPT_ID: generating data..."
+generateData $2 $3
+

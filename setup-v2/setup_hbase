@@ -1,0 +1,16 @@
+#!/bin/bash
+. ../setup/include/settings
+. ../setup/include/functions
+. ../setup/include/settings_spammer
+. include/settings_hbase
+
+setupPaswordless $HBASE_LOCAL_IP_1 $HBASE_SERVER_PASSWORD
+
+executeScriptRemotely "scripts/hbase_remote" $HBASE_LOCAL_IP_1
+
+echo "#!/bin/bash
+DB_PORT=\"$HBASE_DB_PORT\"
+DB_NAME=\"$HBASE_USE_DB_NAME\" 
+aDbHosts=($HBASE_LOCAL_IP_1)" > tmp/hbase_settings
+
+copySettingsToAllSpammers "tmp/hbase_settings" "scripts/hbase-v2/settings"
